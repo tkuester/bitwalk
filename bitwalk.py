@@ -41,7 +41,10 @@ class BitWalk(object):
         self.stdscr.noutrefresh()
 
     def set_title(self, adtl=''):
-        self.stdscr.addstr(0, 0, ' [bitwalk] %s %s' % (self.file_name, adtl), curses.A_REVERSE)
+        self.stdscr.addstr(0, 0, ' [bitwalk] %s' % (self.file_name), curses.A_REVERSE)
+        if len(adtl) > 0:
+            self.stdscr.addstr(' %s' % (adtl), curses.A_REVERSE)
+        # TODO: Remove extra % when going from 40 to 9% (properly clear line)
         self.stdscr.chgat(-1, curses.A_REVERSE)
         self.stdscr.noutrefresh()
 
@@ -67,7 +70,33 @@ class BitWalk(object):
         self.clear_status()
         self.scroll(1)
 
-    def scroll(self, line_no=None):
+    def find(self, pattern=None):
+        if pattern is not None:
+            self.pattern = pattern.strip()
+            self.pattern = self.pattern.replace(' ', '')
+            self.pattern = self.pattern.replace('0', '\x00')
+            self.pattern = self.pattern.replace('1', '\x01')
+            self.search_offset = 0
+
+        if self.pattern is None or len(self.pattern) == 0:
+            return
+
+        self.status_msg('Searching for pattern...')
+
+        stop = self.file_len - len(self.pattern) - 1
+        for i in xrange(self.search_offset, stop):
+            self.fp.seek(i)
+            chk = self.fp.read(len(self.pattern))
+            if chk == self.pattern:
+                self.search_offset = i + 1
+                self.status_msg("Found at offset %d" % i)
+                self.scroll(offset=i)
+                return
+
+        self.status_msg('Done "%s"' % (self.pattern.replace('\x00', '0').replace('\x01', '1')))
+
+
+    def scroll(self, line_no=None, offset=None):
         if self.fp is None:
             return
 
@@ -83,14 +112,18 @@ class BitWalk(object):
         elif self.line_no < 1:
             self.line_no = 1
 
-        offset = (self.line_no - 1) * bits_per_line
-        if(offset > self.file_len):
-            offset = self.file_len
+        if offset is not None:
+            seek = offset
+        else:
+            seek = (self.line_no - 1) * bits_per_line
+            if seek > self.file_len:
+                seek = self.file_len
 
-        self.set_title('%d%%' % int((1.0 * offset / self.file_len) * 100))
+        self.set_title('%2d%%' % int((1.0 * seek / self.file_len) * 100))
 
-        self.fp.seek(offset)
+        self.fp.seek(seek)
         self.main_win.erase()
+        # TODO: This makes Copy Paste a pain in the butt :(
         self.main_win.border()
 
         i = 0
@@ -186,6 +219,11 @@ class BitWalk(object):
                 self.scroll(self.line_no + self.max_y/2)
             elif c == curses.KEY_PPAGE:
                 self.scroll(self.line_no - self.max_y/2)
+            elif c == ord('/'):
+                search = self.status_query('/')
+                self.find(search)
+            elif c == ord('n'):
+                self.find()
 
             curses.doupdate()
 
