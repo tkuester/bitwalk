@@ -44,10 +44,12 @@ class BitWalk(object):
             elif c == curses.KEY_RIGHT:
                 bwg.right()
             elif c == ord('/'):
-                search = self.status_query('/')
-                pass
+                search = bwg.status_query('/')
+                bwg.get_active_buffer().search(search)
             elif c == ord('n'):
-                pass
+                bwg.get_active_buffer().search()
+            elif c == ord('N'):
+                bwg.status_msg('TODO')
 
 def main():
     usage = 'usage: %prog [options] [file ..]'

@@ -10,6 +10,7 @@ class BitWalkBuffer(object):
         self.path = None
         self.modlock = False
         self.modified = False
+        self.searchiter = None
 
         self.curs_offset = 0
         self.offset = 0
@@ -34,6 +35,25 @@ class BitWalkBuffer(object):
         self.gui.resize()
         self.gui.status_msg('"%s"%s' % (path, ' [readonly]' if self.modlock else ''))
 
+    def search(self, pattern=None):
+        if pattern:
+            pattern = bitarray(pattern)
+            self.searchiter = self.ba.itersearch(pattern)
+
+        if self.searchiter is None:
+            self.gui.status_msg("No search pattern")
+            return
+
+        try:
+            ret = self.searchiter.next()
+            self.offset = ret
+            self.move_curs(abs_offset=self.offset)
+            self.gui.status_msg("Found result at offset %d" % ret)
+            self.render()
+        except StopIteration:
+            self.searchiter = None
+            self.gui.status_msg("No more results")
+
     def move_curs(self, x_del=None, y_del=None, abs_offset=None):
         bpr = self.get_bits_per_row()
         if y_del is not None:
@@ -55,16 +75,11 @@ class BitWalkBuffer(object):
         elif self.curs_offset == len(self.ba):
             pass
 
+        # Use the new set_offset method
         if self.curs_offset > stop:
-            self.offset += bpr
-            if self.offset > len(self.ba):
-                self.offset = self.ba
-            self.render()
+            self.set_offset(offset_del=bpr)
         elif self.curs_offset < start:
-            self.offset -= bpr
-            if self.offset < 0:
-                self.offset = 0
-            self.render()
+            self.set_offset(offset_del=-bpr)
 
         pos = self.curs_offset - self.offset
         y = pos / bpr
@@ -84,6 +99,22 @@ class BitWalkBuffer(object):
     def get_bits_per_row(self):
         (y, x) = self.gui.main_win.getmaxyx()
         return ((x - 1) / (self.bit_group + 1)) * self.bit_group
+
+    def set_offset(self, offset_del=None, abs_offset=None):
+        if abs_offset:
+            offset = abs_offset
+        elif offset_del:
+            offset = self.offset + offset_del
+        else:
+            return
+
+        if offset < 0:
+            self.offset = 0
+        elif offset > len(self.ba) - 1:
+            self.offset = len(self.ba) - 1
+        else:
+            self.offset = offset
+        self.render()
 
     def render(self):
         self.gui.main_win.erase()
