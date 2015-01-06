@@ -75,6 +75,10 @@ class BitWalk(object):
         self.stdscr.clrtoeol()
 
     def status_msg(self, message):
+        # TODO: Break message over multiple lines
+        if len(message) >= self.max_x:
+            message = message[0:self.max_x-1]
+
         self.clear_status()
         self.stdscr.addstr(self.max_y - 1, 0, message)
         self.stdscr.clrtoeol()
