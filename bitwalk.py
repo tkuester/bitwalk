@@ -30,17 +30,16 @@ class BitsWindow(object):
             self.parent.status_msg(str(e))
             self.ba = bitarray()
 
-    def curs_to_pos(self):
-        pass
-
-    def draw(self):
+    def dimensions(self):
         (y, x) = self.win.getmaxyx()
         bits_per_line = (x / 9) * 8
         if bits_per_line < 8:
             bits_per_line == 8
 
-        self.parent.status_msg("New dims: %d, %d / %d per row" % (y, x,
-            bits_per_line))
+        return (y, x, bits_per_line)
+
+    def draw(self):
+        (y, x, bits_per_line) = self.dimensions()
 
         ofs = self.scn_offset
         for i in xrange(y):
@@ -48,11 +47,11 @@ class BitsWindow(object):
             if len(bits) > 0:
                 bits = ' '.join([bits[j:j+8] for j in xrange(0, len(bits), 8)])
                 self.win.addstr(i, 0, bits)
-                self.win.clrtoeol()
                 ofs += bits_per_line
             else:
                 self.win.addstr(i, 0, '~')
-                self.win.clrtoeol()
+
+            self.win.clrtoeol()
 
 class BitWalk(object):
     def __init__(self, vals, args):
