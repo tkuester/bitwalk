@@ -3,7 +3,48 @@ import sys
 import optparse
 import curses
 
-from bwbuffer import BitWalkBuffer
+from bitarray import bitarray
+
+class BitsWindow(object):
+    def __init__(self, parent, win):
+        self.parent = parent
+        self.win = win
+
+        self.scn_offset = 0
+        self.curs_offset = 0
+        self.ba = bitarray()
+
+    def open(self, path):
+        try:
+            fp = open(path, 'rb')
+            self.ba = bitarray()
+            self.ba.fromfile(fp)
+            self.scn_offset = 0
+            self.curs_offset = 0
+            fp.close()
+
+            self.parent.status_msg("\"%s\" %d bits" % (path, len(self.ba)))
+            self.draw()
+        except (IOError, OSError) as e:
+            self.parent.status_msg(str(e))
+            self.ba = bitarray()
+
+    def curs_to_pos(self):
+        pass
+
+    def draw(self):
+        (y, x) = self.win.getmaxyx()
+        bits_per_line = (x / 9) * 8
+
+        for i in xrange(y):
+            ofs = self.scn_offset
+
+            bits = self.ba[ofs:ofs+bits_per_line].to01()
+            bits = ' '.join([bits[j:j+8] for j in xrange(0, len(bits), 8)])
+            self.win.addstr(i, 0, bits)
+            ofs += bits_per_line
+
+        self.parent.refresh()
 
 class BitWalk(object):
     def __init__(self, vals, args):
@@ -11,12 +52,15 @@ class BitWalk(object):
         self.args = args
 
         self.running = False
-        self.buffers = []
-        self.active_buffer = 0
+        self.bits_win = None
 
     def do_cmd(self, cmd):
-        if cmd == 'q':
+        if cmd == '':
+            self.clear_status()
+        elif cmd == 'q':
             self.running = False
+        else:
+            self.status_msg("Command not recognized: %s" % cmd)
 
     def clear_status(self):
         self.stdscr.move(self.max_y - 1, 0)
@@ -25,6 +69,7 @@ class BitWalk(object):
     def status_msg(self, message):
         self.clear_status()
         self.stdscr.addstr(self.max_y - 1, 0, message)
+        #self.bits_win.steal_curs()
 
     def status_query(self, query):
         self.status_msg(query)
@@ -35,27 +80,41 @@ class BitWalk(object):
 
         return ret.strip()
 
+    def refresh(self):
+        self.stdscr.refresh()
+        self.bits_win.win.refresh()
+
     def resize(self):
         (self.max_y, self.max_x) = self.stdscr.getmaxyx()
-        curses.resizeterm(self.max_y, self.max_x)
+        (y, x) = (self.max_y, self.max_x)
 
-    def get_active_buffer(self):
-        return self.buffers[self.active_buffer]
+        curses.resizeterm(y, x)
 
-    def run(self, stdscr):
-        # Setup Curses
+        if y == 1:
+            self.bits_win.win.resize(y, x)
+        else:
+            self.bits_win.win.resize(y - 1, x)
+
+    def init(self, stdscr):
         self.stdscr = stdscr
 
+        # Setup Curses
         curses.noecho()
         if curses.has_colors():
             curses.start_color()
 
+        # Build windows
+        win = curses.newwin(1,1,0,0)
+        self.bits_win = BitsWindow(self, win)
+
         self.resize()
-
-        win = curses.newwin(10, 10, 0, 0)
-        win.border()
-
         self.running = True
+
+        self.bits_win.open(self.args[0])
+
+    def run(self, stdscr):
+        self.init(stdscr)
+
         while self.running:
             c = self.stdscr.getch()
 
@@ -70,12 +129,12 @@ class BitWalk(object):
                 self.do_cmd(cmd)
 
 def main():
-    usage = 'usage: %prog [options] file [...]'
+    usage = 'usage: %prog file'
     op = optparse.OptionParser(usage)
     (vals, args) = op.parse_args()
 
-    if len(args) == 0:
-        print 'No files to read'
+    if len(args) != 1:
+        op.print_usage()
         return
 
     bw = BitWalk(vals, args)
