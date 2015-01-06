@@ -25,6 +25,7 @@ class BitsWindow(object):
 
             self.parent.status_msg("\"%s\" %d bits" % (path, len(self.ba)))
             self.draw()
+            self.parent.refresh()
         except (IOError, OSError) as e:
             self.parent.status_msg(str(e))
             self.ba = bitarray()
@@ -35,16 +36,21 @@ class BitsWindow(object):
     def draw(self):
         (y, x) = self.win.getmaxyx()
         bits_per_line = (x / 9) * 8
+        if bits_per_line < 8:
+            bits_per_line == 8
 
+        self.parent.status_msg("New dims: %d, %d / %d per row" % (y, x,
+            bits_per_line))
+
+        ofs = self.scn_offset
         for i in xrange(y):
-            ofs = self.scn_offset
-
             bits = self.ba[ofs:ofs+bits_per_line].to01()
-            bits = ' '.join([bits[j:j+8] for j in xrange(0, len(bits), 8)])
-            self.win.addstr(i, 0, bits)
-            ofs += bits_per_line
-
-        self.parent.refresh()
+            if len(bits) > 0:
+                bits = ' '.join([bits[j:j+8] for j in xrange(0, len(bits), 8)])
+                self.win.addstr(i, 0, bits)
+                ofs += bits_per_line
+            else:
+                self.win.addstr(i, 0, '~')
 
 class BitWalk(object):
     def __init__(self, vals, args):
@@ -120,6 +126,8 @@ class BitWalk(object):
 
             if c == curses.KEY_RESIZE:
                 self.resize()
+                self.bits_win.draw()
+                self.refresh()
                 continue
 
             self.clear_status()
