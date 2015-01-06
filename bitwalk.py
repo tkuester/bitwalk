@@ -48,9 +48,11 @@ class BitsWindow(object):
             if len(bits) > 0:
                 bits = ' '.join([bits[j:j+8] for j in xrange(0, len(bits), 8)])
                 self.win.addstr(i, 0, bits)
+                self.win.clrtoeol()
                 ofs += bits_per_line
             else:
                 self.win.addstr(i, 0, '~')
+                self.win.clrtoeol()
 
 class BitWalk(object):
     def __init__(self, vals, args):
@@ -75,7 +77,7 @@ class BitWalk(object):
     def status_msg(self, message):
         self.clear_status()
         self.stdscr.addstr(self.max_y - 1, 0, message)
-        #self.bits_win.steal_curs()
+        self.stdscr.clrtoeol()
 
     def status_query(self, query):
         self.status_msg(query)
