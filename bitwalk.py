@@ -19,9 +19,10 @@ class BitsWindow(object):
             fp = open(path, 'rb')
             self.ba = bitarray()
             self.ba.fromfile(fp)
+            fp.close()
+
             self.scn_offset = 0
             self.curs_offset = 0
-            fp.close()
 
             self.parent.status_msg("\"%s\" %d bits" % (path, len(self.ba)))
             self.draw()
@@ -38,11 +39,67 @@ class BitsWindow(object):
 
         return (y, x, bits_per_line)
 
+    def curs_pos(self, do_move=True):
+        (ydim, xdim, bits_per_line) = self.dimensions()
+
+        y = 0
+        x = 0
+        scn_ofs = self.scn_offset
+        while (scn_ofs + bits_per_line) <= self.curs_offset:
+            scn_ofs += bits_per_line
+            y += 1
+
+        while scn_ofs < self.curs_offset:
+            scn_ofs += 1
+            x += 1
+
+        # Account for spaces between groups
+        x += (x / 8)
+
+        if y >= ydim:
+            # TODO: how to handle this?
+            return
+
+        #self.parent.status_msg("ScnOfs: %d / CursOfs: %d / BPL: %d / Curs Pos: %d, %d" %
+        #        (self.scn_offset, self.curs_offset, bits_per_line, y, x))
+        self.win.move(y, x)
+        self.parent.refresh()
+
+    def move_curs(self, x_ofs=None, y_ofs=None, abs_ofs=None, home=None):
+        #TODO: Home / End
+        (ydim, xdim, bits_per_line) = self.dimensions()
+        
+        if isinstance(y_ofs, int):
+            new_ofs = self.curs_offset + y_ofs * bits_per_line
+
+        if isinstance(x_ofs, int):
+            new_ofs = self.curs_offset + x_ofs
+
+        if isinstance(abs_ofs, int) and abs_ofs <= len(self.ba):
+            new_ofs = abs_ofs
+
+        if home is True:
+            new_ofs = self.curs_offset
+            new_ofs -= (new_ofs % bits_per_line)
+        elif home is False:
+            new_ofs = self.curs_offset
+            # Add line
+            new_ofs += bits_per_line
+            # Go home
+            new_ofs -= (new_ofs % bits_per_line)
+            # Subtract one
+            new_ofs -= 1
+
+        if (0 <= new_ofs < len(self.ba)):
+            self.curs_offset = new_ofs
+
+        self.curs_pos()
+
     def draw(self):
-        (y, x, bits_per_line) = self.dimensions()
+        (ydim, xdim, bits_per_line) = self.dimensions()
 
         ofs = self.scn_offset
-        for i in xrange(y):
+        for i in xrange(ydim):
             bits = self.ba[ofs:ofs+bits_per_line].to01()
             if len(bits) > 0:
                 bits = ' '.join([bits[j:j+8] for j in xrange(0, len(bits), 8)])
@@ -103,8 +160,10 @@ class BitWalk(object):
 
         if y == 1:
             self.bits_win.win.resize(y, x)
+            self.bits_win.curs_pos()
         else:
             self.bits_win.win.resize(y - 1, x)
+            self.bits_win.curs_pos()
 
     def init(self, stdscr):
         self.stdscr = stdscr
@@ -132,6 +191,7 @@ class BitWalk(object):
             if c == curses.KEY_RESIZE:
                 self.resize()
                 self.bits_win.draw()
+                self.bits_win.curs_pos()
                 self.refresh()
                 continue
 
@@ -140,6 +200,19 @@ class BitWalk(object):
             if c == ord(':'):
                 cmd = self.status_query(':')
                 self.do_cmd(cmd)
+            elif c == curses.KEY_UP:
+                self.bits_win.move_curs(y_ofs=-1)
+            elif c == curses.KEY_DOWN:
+                self.bits_win.move_curs(y_ofs=+1)
+            elif c == curses.KEY_LEFT:
+                self.bits_win.move_curs(x_ofs=-1)
+            elif c == curses.KEY_RIGHT:
+                self.bits_win.move_curs(x_ofs=+1)
+            elif c == curses.KEY_HOME:
+                self.bits_win.move_curs(home=True)
+            elif c == curses.KEY_END:
+                self.bits_win.move_curs(home=False)
+
 
 def main():
     usage = 'usage: %prog file'
