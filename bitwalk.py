@@ -26,6 +26,7 @@ class BitsWindow(object):
 
             self.parent.status_msg("\"%s\" %d bits" % (path, len(self.ba)))
             self.draw()
+            self.curs_pos()
             self.parent.refresh()
         except (IOError, OSError) as e:
             self.parent.status_msg(str(e))
@@ -71,7 +72,7 @@ class BitsWindow(object):
         bits_per_screen = ydim * bits_per_line
         
         if isinstance(y_ofs, int):
-            new_ofs = self.curs_offset + y_ofs * bits_per_line
+            new_ofs = self.curs_offset + (y_ofs * bits_per_line)
 
         if isinstance(x_ofs, int):
             new_ofs = self.curs_offset + x_ofs
@@ -91,20 +92,32 @@ class BitsWindow(object):
             # Subtract one
             new_ofs -= 1
 
-        if (0 <= new_ofs < len(self.ba)):
+        if new_ofs < 0:
+            pass
+        elif new_ofs > len(self.ba):
+            self.curs_offset = len(self.ba) - 1
+        else:
             self.curs_offset = new_ofs
 
-        # todo:
         scn_ofs = self.scn_offset
         if self.curs_offset >= (self.scn_offset + bits_per_screen):
             scn_ofs += bits_per_line
         elif self.curs_offset < self.scn_offset:
             scn_ofs -= bits_per_line
 
-        if 0 < scn_ofs < len(self.ba) and scn_ofs != self.scn_offset:
-            self.scn_offset = scn_ofs
-            self.draw()
+        if scn_ofs != self.scn_offset:
+            if (scn_ofs + bits_per_screen) >= len(self.ba):
+                self.curs_offset = len(self.ba) - 1
+                self.scn_offset += bits_per_line
 
+            elif scn_ofs <= 0:
+                self.scn_offset = 0
+
+            else:
+                self.scn_offset = scn_ofs
+
+            self.draw()
+        
         self.curs_pos()
 
     def draw(self):
